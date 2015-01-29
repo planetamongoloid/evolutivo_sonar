@@ -1,30 +1,9 @@
-/*
-  UDPSendReceive.pde:
- This sketch receives UDP message strings, prints them to the serial port
- and sends an "acknowledge" string back to the sender
- 
- A Processing sketch is included at the end of file that can be used to send 
- and received messages for testing with a computer.
- 
- created 21 Aug 2010
- by Michael Margolis
- 
- This code is in the public domain.
- */
-
-
 #include <SPI.h>         // needed for Arduino versions later than 0018
 #include <Ethernet.h>
 #include <EthernetUdp.h>         // UDP library from: bjoern@cs.stanford.edu 12/30/2008
-
-const int pingPin = 7;
-char buf[12];
-float valor_array[10] = {
-  290,290,290,290,290,290,290,290,290,290};
-long cm_last;
-long error;
 // Enter a MAC address and IP address for your controller below.
 // The IP address will be dependent on your local network:
+char buf[12];
 byte mac[] = {  
   0xDE, 0xAD, 0xBE, 0xEF, 0xFE, 0xED };
 IPAddress ip(192, 168, 1, 33);
@@ -36,115 +15,150 @@ unsigned int localPort = 8888;      // local port to listen on
 // buffers for receiving and sending data
 char packetBuffer[UDP_TX_PACKET_MAX_SIZE]; //buffer to hold incoming packet,
 char  ReplyBuffer[] = "acknowledged";       // a string to send back
-
-int VENTANA = 13;
 // An EthernetUDP instance to let us send and receive packets over UDP
 EthernetUDP Udp;
 
-void setup() {
-  // start the Ethernet and UDP:
+int ultraSoundSignalPins[] = {
+  7,8}; // Front Left,Front, Front Right, Rear Ultrasound signal pins
+char *pingString[] = {
+  "S1 ","S2 "}; // just something to print to indicate direction
+float valor_array1[10] = {
+  3,3,3,3,3,3,3,3,3,3
+};
+float valor_array2[10] = {
+  3,3,3,3,3,3,3,3,3,3
+};
+int VENTANA = 3;
+int size1;
+void setup()
+{
+  size1 = 10;
   Ethernet.begin(mac,ip);
   Udp.begin(localPort);
-
   Serial.begin(9600);
 }
 
-void loop() {
-  // establish variables for duration of the ping, 
-  // and the distance result in inches and centimeters:
-  long duration, inches, cm;
+//Ping function
+unsigned long ping(int index)
+{
+  unsigned long echo;
 
-  // The PING))) is triggered by a HIGH pulse of 2 or more microseconds.
-  // Give a short LOW pulse beforehand to ensure a clean HIGH pulse:
-  pinMode(pingPin, OUTPUT);
-  digitalWrite(pingPin, LOW);
-  delayMicroseconds(2);
-  digitalWrite(pingPin, HIGH);
-  delayMicroseconds(5);
-  digitalWrite(pingPin, LOW);
-  // The same pin is used to read the signal from the PING))): a HIGH
-  // pulse whose duration is the time (in microseconds) from the sending
-  // of the ping to the reception of its echo off of an object.
-  pinMode(pingPin, INPUT);
-  duration = pulseIn(pingPin, HIGH);
-  cm = microsecondsToCentimeters(duration);
-  
-  error= cm;
-  // hago un map porque hemos tenido que reducir el recorrido del carril tenemos menos longitud
-  // el valor 200 se podria hacer variable, incluir un potenciometro?
-  cm = map(cm,5,143,0,290);
-  
-  valor_array[0] = valor_array[1];
-  valor_array[1] = valor_array[2];
-  valor_array[2] = valor_array[3];
-  valor_array[3] = valor_array[4];
-
-  valor_array[4] = valor_array[5];
-  valor_array[5] = valor_array[6];
-  valor_array[6] = valor_array[7];
-  valor_array[7] = valor_array[8];
-  valor_array[8] = valor_array[9];
-  // guardo en la ultima posicion
-  valor_array[9] = cm;
-  // check de el valor anterior , le pongo una ventana de valores para evitar flicket
-  // en el inicio hay que llevar la pantalla hasta el principio porque empieza el array con valor 290
-  // si cuando arrancas el mac esta la pantalla en el medio obviamente el valor es mayor que la ventana y siempre quedaria en 290
-  if(valor_array[9] > valor_array[8]+VENTANA || valor_array[9] < valor_array[8]-VENTANA){
-      
-    valor_array[9] = valor_array[8];
+  pinMode(ultraSoundSignalPins[index], OUTPUT); // Switch signalpin to output
+  digitalWrite(ultraSoundSignalPins[index], LOW); // Send low pulse
+  delayMicroseconds(2); // Wait for 2 microseconds
+  digitalWrite(ultraSoundSignalPins[index], HIGH); // Send high pulse
+  delayMicroseconds(5); // Wait for 5 microseconds
+  digitalWrite(ultraSoundSignalPins[index], LOW); // Holdoff
+  pinMode(ultraSoundSignalPins[index], INPUT); // Switch signalpin to input
+  digitalWrite(ultraSoundSignalPins[index], HIGH); // Turn on pullup resistor
+  echo = pulseIn(ultraSoundSignalPins[index], HIGH); //Listen for echo
+  //return (echo / 58.138) * .39; //convert to CM then to inches
+  return (echo / 58.138);
+}
+float getMedia(int i,float valor){
+  float media = 0;
+  float media2 = 0;
+  for(int j=0; j < size1 ;j++){
+    if(j < size1-1){
+      if(i<1){
+        valor_array1[j] = valor_array1[j+1];
+      }
+      else{
+        valor_array2[j] = valor_array2[j+1];
+      }
+     
+    }//EL ULTIMO VALOR
+    else{
+      if(i<1){
+        //if(valor_array1[9] > valor_array1[8]+VENTANA || valor_array1[9] < valor_array1[8]-VENTANA){
+          valor_array1[size1-1] = valor;
+        //}
+      }
+      else{
+        //if(valor_array2[9] > valor_array2[8]+VENTANA || valor_array2[9] < valor_array2[8]-VENTANA){
+          valor_array2[size1-1] = valor;
+        //}
+      }
+      //Serial.print(valor_array1[size1-1]);
+    }
+    media = media + valor_array1[j];
+    media2 = media2 + valor_array2[j];
+    //Serial.println(media2);
+//    Serial.print(",");
   }
-  cm = round((valor_array[0] + valor_array[1] + valor_array[2] + valor_array[3] + valor_array[4] + valor_array[5] + valor_array[6] + valor_array[7] + valor_array[8] + valor_array[9]) / 10);
-  //Serial.println("enviando");
- 
+  //Serial.println();
+  //Serial.print(valor_array1[9]);
+  if(i==0){
+    return round(media/10);
+  }else{
+    return round(media2/10);
+  }
+  
+}
 
-  Serial.print(cm);
-  Serial.print("cm--");
-  Serial.print(error);
-  Serial.print("++++");
-
-  Serial.print(valor_array[0]);
+void loop()
+{
+  unsigned long ultrasoundValue;
+  unsigned long send1,send2,send1_last,send2_last;
+  float media,media2;
+  for(int i=0; i < 2; i++){
+    ultrasoundValue = ping(i);
+    if(i==0){
+      media = getMedia(i,ultrasoundValue);
+    }else{
+      media2 = getMedia(i,ultrasoundValue);
+    }
+    //Serial.print(media2);
+    //Serial.print("...");
+//    //Serial.print(pingString[i]);
+    //Serial.print(ultrasoundValue);
+    //Serial.print(",");
+//    if(i==0){
+//      //Serial.print("cm, ");    
+//    }
+//    else{
+//      Serial.print("cm, "); 
+//    }
+//    delay(50);
+      
+  }
+  for(int i=0;i<10;i++){
+    Serial.print(valor_array2[i]);
+    Serial.print(",");
+  }
+  Serial.print("-----");
+  send1 = map(media,9,145,0,145);
+  send2 = map(media2,7,150,290,145);
+  Serial.print(media);
   Serial.print(",");
-  Serial.print(valor_array[1]);
+  Serial.print(media2);
+//  Serial.print("->");
+//  Serial.print(ceil(media2));
+  Serial.print("--map->");
+  Serial.print(send1);
   Serial.print(",");
-  Serial.print(valor_array[2]);
-  Serial.print(",");
-  Serial.print(valor_array[3]);
-  Serial.print(",");
-  Serial.print(valor_array[4]);
-  Serial.print(",");
-  Serial.print(valor_array[5]);
-  Serial.print(",");
-  Serial.print(valor_array[6]);
-  Serial.print(",");
-  Serial.print(valor_array[7]);
-  Serial.print(",");
-  Serial.print(valor_array[8]);
-  Serial.print(",");
-  Serial.print(valor_array[9]);
-
+  Serial.print(send2);
   Serial.println();
-  if(cm != cm_last){
-    cm_last = cm;
-    // send a reply, to the IP address and port that sent us the packet we received
+  //Serial.print("la media1 ");
+  //Serial.println(media);
+  // send a reply, to the IP address and port that sent us the packet we received
     Udp.beginPacket(remoto, remotoPort);
-    Udp.write(itoa(cm,buf,10));
+    if(media<=145){
+      if(send1 != send1_last){
+        send1_last = send1;
+        Udp.write(itoa(send1,buf,10));
+      }
+    }else{
+      if(send2 != send2_last){
+        send2_last = send2;
+        Udp.write(itoa(send2,buf,10));
+      }
+    }
     //Udp.write("5");
     Udp.endPacket();
-  }
-
   delay(50);
-}
-long microsecondsToCentimeters(long microseconds)
-{
-  // The speed of sound is 340 m/s or 29 microseconds per centimeter.
-  // The ping travels out and back, so to find the distance of the
-  // object we take half of the distance travelled.
-  return microseconds / 29 / 2;
-}
-
-
-
-
+  
+} 
 
 
 
