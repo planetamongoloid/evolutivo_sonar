@@ -127,7 +127,7 @@ void loop()
     Serial.print(",");
   }
   Serial.print("-----");
-  send1 = map(media,9,145,0,145);
+  send1 = map(media,19,145,0,145);
   send2 = map(media2,7,150,290,145);
   Serial.print(media);
   Serial.print(",");
